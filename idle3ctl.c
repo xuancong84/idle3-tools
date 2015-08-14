@@ -34,6 +34,7 @@ int verbose = 0;
 
 int vscenabled = 0;
 int force = 0;
+int ignore_errors=0;
 
 char *device;
 char *progname;
@@ -65,7 +66,7 @@ int check_WDC_drive()
 
   memset(buffer, 0, sizeof(buffer));
 
-  if(sg16(fd, SG_READ, SG_PIO, &tf, buffer, 512, 5)) {
+  if(sg16(fd, SG_READ, SG_PIO, &tf, buffer, 512, 5)) if(!ignore_errors) {
     err = errno;
     perror("sg16(ATA_OP_IDENTIFY) failed");
     return err;
@@ -273,6 +274,7 @@ void show_usage(void)
   printf(" -V : show version and exit immediately\n");
   printf(" -v : verbose output\n");
   printf(" --force : force even if no Western Digital drives are detected\n");
+  printf(" --ignore_errors : continue even if there is an error\n");
   printf(" -g : get raw idle3 timer value\n");
   printf(" -g100 : get idle3 timer value as wdidle3 v1.00 value\n");
   printf(" -g103 : get idle3 timer value as wdidle3 v1.03 value\n");
@@ -306,6 +308,7 @@ int main(int argc, char **argv)
       exit(1);
     }
     else if (strcmp(argv[i],"--force")==0) force=1;
+    else if (strcmp(argv[i],"--ignore-errors")==0) ignore_errors=1;
     else if (strcmp(argv[i],"-v")==0) verbose=1;
     else if (strcmp(argv[i],"-g")==0) action=1;
     else if (strcmp(argv[i],"-g100")==0) action=2;
@@ -345,15 +348,15 @@ int main(int argc, char **argv)
       }
     
       // Check if HDD is a WD
-      if (check_WDC_drive() != 0) {
+      if(!force)if (check_WDC_drive() != 0){
         exit(1);
       }
   
-      if (VSC_enable()!=0) exit(1);
+      if (VSC_enable()!=0) if(!ignore_errors) exit(1);
     
       if (action == 0) {
-        if (VSC_send_write_key()!=0) exit(1);
-        if (VSC_set_timer(timer)!=0) exit(1);
+        if (VSC_send_write_key()!=0) if(!ignore_errors) exit(1);
+        if (VSC_set_timer(timer)!=0) if(!ignore_errors) exit(1);
 
         if (timer==0) printf("Idle3 timer disabled\n");
         else printf("Idle3 timer set to %d (0x%02x)\n", timer, timer);
@@ -362,8 +365,8 @@ int main(int argc, char **argv)
                "setting to be taken into account. A reboot will not be enough!\n");
       }
       else if (action>=1) {
-        if (VSC_send_read_key()!=0) exit(1);
-        if (VSC_get_timer(&timer)!=0) exit(1);
+        if (VSC_send_read_key()!=0) if(!ignore_errors) exit(1);
+        if (VSC_get_timer(&timer)!=0) if(!ignore_errors) exit(1);
 
         if (timer==0) {
           printf("Idle3 timer is disabled\n");
